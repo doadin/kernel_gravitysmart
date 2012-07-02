@@ -1026,14 +1026,15 @@ static int quantum_touch_probe(void)
 	    config_normal.acquisition_config.atchcalsthr = 20; // --------- 45;//15;//0;
     else
         config_normal.acquisition_config.atchcalsthr = 45;
-        
-  /* for firmware ver2.0 */ 
+
+  /* for firmware ver2.0 */
 	if(version == 0x20)
 	{
-		config_normal.acquisition_config.atchfrccalthr = 50;		
-		config_normal.acquisition_config.atchfrccalratio = 25; 
+		config_normal.acquisition_config.atchfrccalthr = 50;
+		config_normal.acquisition_config.atchfrccalratio = 25;
 	}
 
+/** Stock T9 configuration start
 	config_normal.touchscreen_config.ctrl = 143;   // former value => 143;
 	config_normal.touchscreen_config.xorigin = 0;
 	config_normal.touchscreen_config.yorigin = 2;
@@ -1088,11 +1089,45 @@ static int quantum_touch_probe(void)
 	config_normal.touchscreen_config.yedgectrl= 0;
 	config_normal.touchscreen_config.yedgedist= 0;
 	config_normal.touchscreen_config.jumplimit= 18;
-  /* for firmware ver2.0 */ 
+  // for firmware ver2.0 
 	if(version == 0x20)
 	{
-		config_normal.touchscreen_config.tchhyst = 0;		
+		config_normal.touchscreen_config.tchhyst = 0;
 	}
+*/
+// T9 stock configuration end
+// T9 custom configuration begin
+	config_normal.touchscreen_config.ctrl       = 143;
+	config_normal.touchscreen_config.xorigin    = 0;
+	config_normal.touchscreen_config.yorigin    = 2;
+	config_normal.touchscreen_config.xsize      = 14; //14
+	config_normal.touchscreen_config.ysize      = 10; //10
+	config_normal.touchscreen_config.akscfg     = 0;
+	config_normal.touchscreen_config.blen       = 16; //0x21;
+	config_normal.touchscreen_config.tchthr     = 27; //40;
+	config_normal.touchscreen_config.tchdi      = 1; //2;
+	config_normal.touchscreen_config.orientate  = 1;
+	config_normal.touchscreen_config.mrgtimeout = 0;
+	config_normal.touchscreen_config.movhysti   = 3;
+	config_normal.touchscreen_config.movhystn   = 1;
+	config_normal.touchscreen_config.movfilter  = 15; //0x2e;
+	config_normal.touchscreen_config.numtouch   = 2;
+	config_normal.touchscreen_config.mrghyst    = 10; //5;
+	config_normal.touchscreen_config.mrgthr     = 20; //40;
+	config_normal.touchscreen_config.tchamphyst = 10;
+	config_normal.touchscreen_config.xres       = MAX_Y-1;
+	config_normal.touchscreen_config.yres       = MAX_X-1;
+	config_normal.touchscreen_config.xloclip    = 10; //0;
+	config_normal.touchscreen_config.xhiclip    = 0;
+	config_normal.touchscreen_config.yloclip    = 0;
+	config_normal.touchscreen_config.yhiclip    = 0;
+	config_normal.touchscreen_config.xedgectrl  = 143;
+	config_normal.touchscreen_config.xedgedist  = 40;
+	config_normal.touchscreen_config.yedgectrl  = 143;
+	config_normal.touchscreen_config.yedgedist  = 80;
+	config_normal.touchscreen_config.jumplimit  = 18;
+	config_normal.touchscreen_config.tchhyst    = 0;
+// T9 custom configuration end
 
 	config_normal.keyarray_config.ctrl = 0;
 	config_normal.keyarray_config.xorigin = 0;
