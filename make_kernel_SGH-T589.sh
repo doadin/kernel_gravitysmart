@@ -1,0 +1,2 @@
+make gt2_rev01_defconfig
+make
