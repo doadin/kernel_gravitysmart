@@ -9,117 +9,158 @@
  */
 
 #include <linux/init.h>
-#include <linux/cpumask.h>
+#include <linux/errno.h>
 #include <linux/delay.h>
-#include <linux/interrupt.h>
+#include <linux/device.h>
+#include <linux/jiffies.h>
+#include <linux/smp.h>
 #include <linux/io.h>
 
 #include <asm/hardware/gic.h>
 #include <asm/cacheflush.h>
 #include <asm/mach-types.h>
 
-#include <mach/smp.h>
-#include <mach/hardware.h>
 #include <mach/msm_iomap.h>
 
-#define SECONDARY_CPU_WAIT_MS 10
+#include "scm-boot.h"
 
-int pen_release = -1;
+#define VDD_SC1_ARRAY_CLAMP_GFS_CTL 0x15A0
+#define SCSS_CPU1CORE_RESET 0xD80
+#define SCSS_DBG_STATUS_CORE_PWRDUP 0xE64
 
-int get_core_count(void)
+/* Mask for edge trigger PPIs except AVS_SVICINT and AVS_SVICINTSWDONE */
+#define GIC_PPI_EDGE_MASK 0xFFFFD7FF
+
+extern void msm_secondary_startup(void);
+/*
+ * control for which core is the next to come out of the secondary
+ * boot "holding pen".
+ */
+volatile int pen_release = -1;
+
+static DEFINE_SPINLOCK(boot_lock);
+
+void __cpuinit platform_secondary_init(unsigned int cpu)
 {
-#ifdef CONFIG_NR_CPUS
-	return CONFIG_NR_CPUS;
-#else
-	return 1;
-#endif
+	/* Configure edge-triggered PPIs */
+	writel(GIC_PPI_EDGE_MASK, MSM_QGIC_DIST_BASE + GIC_DIST_CONFIG + 4);
+
+	/*
+	 * if any interrupts are already enabled for the primary
+	 * core (e.g. timer irq), then they will not have been enabled
+	 * for us: do so
+	 */
+	gic_secondary_init(0);
+
+	/*
+	 * let the primary processor know we're out of the
+	 * pen, then head off into the C entry point
+	 */
+	pen_release = -1;
+	smp_wmb();
+
+	/*
+	 * Synchronise with the boot thread.
+	 */
+	spin_lock(&boot_lock);
+	spin_unlock(&boot_lock);
 }
 
-/* Initialize the present map (cpu_set(i, cpu_present_map)). */
-void smp_prepare_cpus(unsigned int max_cpus)
+static __cpuinit void prepare_cold_cpu(unsigned int cpu)
+{
+	int ret;
+	ret = scm_set_boot_addr(virt_to_phys(msm_secondary_startup),
+				SCM_FLAG_COLDBOOT_CPU1);
+	if (ret == 0) {
+		void *sc1_base_ptr;
+		sc1_base_ptr = ioremap_nocache(0x00902000, SZ_4K*2);
+		if (sc1_base_ptr) {
+			writel(0, sc1_base_ptr + VDD_SC1_ARRAY_CLAMP_GFS_CTL);
+			writel(0, sc1_base_ptr + SCSS_CPU1CORE_RESET);
+			writel(3, sc1_base_ptr + SCSS_DBG_STATUS_CORE_PWRDUP);
+			iounmap(sc1_base_ptr);
+		}
+	} else
+		printk(KERN_DEBUG "Failed to set secondary core boot "
+				  "address\n");
+}
+
+int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
+{
+	unsigned long timeout;
+	static int cold_boot_done;
+
+	/* Only need to bring cpu out of reset this way once */
+	if (cold_boot_done == false) {
+		prepare_cold_cpu(cpu);
+		cold_boot_done = true;
+	}
+
+	/*
+	 * set synchronisation state between this boot processor
+	 * and the secondary one
+	 */
+	spin_lock(&boot_lock);
+
+	/*
+	 * The secondary processor is waiting to be released from
+	 * the holding pen - release it, then wait for it to flag
+	 * that it has been released by resetting pen_release.
+	 *
+	 * Note that "pen_release" is the hardware CPU ID, whereas
+	 * "cpu" is Linux's internal ID.
+	 */
+	pen_release = cpu;
+	__cpuc_flush_dcache_area((void *)&pen_release, sizeof(pen_release));
+	outer_clean_range(__pa(&pen_release), __pa(&pen_release + 1));
+
+	/*
+	 * Send the secondary CPU a soft interrupt, thereby causing
+	 * the boot monitor to read the system wide flags register,
+	 * and branch to the address found there.
+	 */
+	smp_cross_call(cpumask_of(cpu), 1);
+
+	timeout = jiffies + (1 * HZ);
+	while (time_before(jiffies, timeout)) {
+		smp_rmb();
+		if (pen_release == -1)
+			break;
+
+		udelay(10);
+	}
+
+	/*
+	 * now the secondary core is starting up let it run its
+	 * calibrations, then wait for it to finish
+	 */
+	spin_unlock(&boot_lock);
+
+	return pen_release != -1 ? -ENOSYS : 0;
+}
+
+/*
+ * Initialise the CPU possible map early - this describes the CPUs
+ * which may be present or become present in the system. The msm8x60
+ * does not support the ARM SCU, so just set the possible cpu mask to
+ * NR_CPUS.
+ */
+void __init smp_init_cpus(void)
+{
+	unsigned int i;
+
+	for (i = 0; i < NR_CPUS; i++)
+		set_cpu_possible(i, true);
+}
+
+void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 {
 	int i;
 
-	for (i = 0; i < max_cpus; i++)
-		cpu_set(i, cpu_present_map);
-}
-
-void smp_init_cpus(void)
-{
-	unsigned int i, ncores = get_core_count();
-
-	for (i = 0; i < ncores; i++)
-		cpu_set(i, cpu_possible_map);
-}
-
-/* Executed by primary CPU, brings other CPUs out of reset. Called at boot
-   as well as when a CPU is coming out of shutdown induced by echo 0 >
-   /sys/devices/.../cpuX.
-*/
-int boot_secondary(unsigned int cpu, struct task_struct *idle)
-{
-	int cnt = 0;
-	printk(KERN_DEBUG "Starting secondary CPU %d\n", cpu);
-
-	/* Tell other CPUs to come out or reset.  Note that secondary CPUs
-	 * are probably running with caches off, so we'll need to clean to
-	 * memory. Normal cache ops will only clean to L2.
-	 */
-	pen_release = cpu;
-	dmac_clean_range((void *)&pen_release,
-			 (void *)(&pen_release + sizeof(pen_release)));
-	dmac_clean_range((void *)&secondary_data,
-			 (void *)(&secondary_data + sizeof(secondary_data)));
-	sev();
-	dsb();
-
-	/* Wait for done signal. The cpu receiving the signal does not
-	 * have the MMU or caching turned on, so all of its reads and
-	 * writes are to/from memory.  Need to ensure that when
-	 * reading the value we invalidate the cache line so we see the
-	 * fresh data from memory as the normal routines may only
-	 * invalidate to POU or L1.
-	 */
-	while (pen_release != 0xFFFFFFFF) {
-		dmac_inv_range((void *)&pen_release,
-			       (void *)(&pen_release+sizeof(pen_release)));
-		msleep_interruptible(1);
-		if (cnt++ >= SECONDARY_CPU_WAIT_MS)
-			break;
-	}
-
-	if (pen_release == 0xFFFFFFFF)
-		printk(KERN_DEBUG "Secondary CPU start acked %d\n", cpu);
-	else
-		printk(KERN_ERR "Secondary CPU failed to start..." \
-		       "continuing\n");
-
-	return 0;
-}
-
-/* Initialization routine for secondary CPUs after they are brought out of
- * reset.
-*/
-void platform_secondary_init(unsigned int cpu)
-{
-	printk(KERN_DEBUG "%s: cpu:%d\n", __func__, cpu);
-
-	trace_hardirqs_off();
-
-	/* Edge trigger PPIs except AVS_SVICINT and AVS_SVICINTSWDONE */
-	writel(0xFFFFD7FF, MSM_QGIC_DIST_BASE + GIC_DIST_CONFIG + 4);
-
-	/* RUMI does not adhere to GIC spec by enabling STIs by default.
-	 * Enable/clear is supposed to be RO for STIs, but is RW on RUMI.
-	 */
-	if (machine_is_msm8x60_surf() ||
-	    machine_is_msm8x60_ffa()  ||
-	    machine_is_msm8x60_rumi3())
-		writel(0x0000FFFF, MSM_QGIC_DIST_BASE + GIC_DIST_ENABLE_SET);
-
 	/*
-	 * setup GIC (GIC number NOT CPU number and the base address of the
-	 * GIC CPU interface
+	 * Initialise the present map, which describes the set of CPUs
+	 * actually populated at the present time.
 	 */
-	gic_cpu_init(0, MSM_QGIC_CPU_BASE);
+	for (i = 0; i < max_cpus; i++)
+		set_cpu_present(i, true);
 }
