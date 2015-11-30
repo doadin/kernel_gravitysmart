@@ -1,28 +1,13 @@
 /* Copyright (c) 2010 Code Aurora Forum. All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Code Aurora nor
- *       the names of its contributors may be used to endorse or promote
- *       products derived from this software without specific prior written
- *       permission.
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NON-INFRINGEMENT ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
- * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
  */
 
@@ -32,8 +17,9 @@
 /* MSM ACPU Interrupt Numbers */
 
 /* 0-15:  STI/SGI (software triggered/generated interrupts)
-   16-31: PPI (private peripheral interrupts)
-   32+:   SPI (shared peripheral interrupts) */
+ * 16-31: PPI (private peripheral interrupts)
+ * 32+:   SPI (shared peripheral interrupts)
+ */
 
 #define GIC_PPI_START 16
 #define GIC_SPI_START 32
@@ -129,7 +115,7 @@
 #define SMMU_GFX2D0_CB_SC_NON_SECURE_IRQ	(GIC_SPI_START + 72)
 #define ROT_IRQ					(GIC_SPI_START + 73)
 #define MMSS_FABRIC_IRQ				(GIC_SPI_START + 74)
-#define INT_MDP					(GIC_SPI_START + 75)
+#define MDP_IRQ					(GIC_SPI_START + 75)
 #define JPEGD_IRQ				(GIC_SPI_START + 76)
 #define JPEG_IRQ				(GIC_SPI_START + 77)
 #define MMSS_IMEM_IRQ				(GIC_SPI_START + 78)
@@ -260,19 +246,8 @@
 #define SMPSS_SPARE_6				(GIC_SPI_START + 222)
 #define SMPSS_SPARE_7				(GIC_SPI_START + 223)
 
-#define NR_TLMM_SCSS_DIR_CONN_IRQ 10
 #define NR_GPIO_IRQS 173
 #define NR_MSM_IRQS 256
-#define NR_PMIC8058_IRQS 256
-#define NR_PMIC8901_IRQS 72
-#define NR_GPIO_EXPANDER_IRQS 64
-#define NR_BOARD_IRQS (NR_PMIC8058_IRQS + NR_PMIC8901_IRQS +\
-		NR_GPIO_EXPANDER_IRQS)
-
-/* smd/smsm interrupts */
-#define INT_A9_M2A_0                    MARM_SCSS_GP_IRQ_0
-#define INT_A9_M2A_5                    MARM_SCSS_GP_IRQ_1
-#define INT_ADSP_A11                    LPASS_SCSS_GP_HIGH_IRQ
-#define INT_DSPS_A11                    SPS_MTI_31
+#define NR_BOARD_IRQS 0
 
 #endif
