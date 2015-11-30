@@ -323,7 +323,8 @@ static struct sock *rfcomm_sock_alloc(struct net *net, struct socket *sock, int 
 	return sk;
 }
 
-static int rfcomm_sock_create(struct net *net, struct socket *sock, int protocol)
+static int rfcomm_sock_create(struct net *net, struct socket *sock,
+			      int protocol, int kern)
 {
 	struct sock *sk;
 
@@ -703,7 +704,7 @@ static int rfcomm_sock_recvmsg(struct kiocb *iocb, struct socket *sock,
 		copied += chunk;
 		size   -= chunk;
 
-		sock_recv_timestamp(msg, sk, skb);
+		sock_recv_ts_and_drops(msg, sk, skb);
 
 		if (!(flags & MSG_PEEK)) {
 			atomic_sub(chunk, &sk->sk_rmem_alloc);
@@ -1065,22 +1066,13 @@ static ssize_t rfcomm_sock_sysfs_show(struct class *dev, char *buf)
 	struct sock *sk;
 	struct hlist_node *node;
 	char *str = buf;
-	int size = PAGE_SIZE;
 
 	read_lock_bh(&rfcomm_sk_list.lock);
 
 	sk_for_each(sk, node, &rfcomm_sk_list.head) {
-		int len;
-
-		len = snprintf(str, size, "%s %s %d %d\n",
+		str += sprintf(str, "%s %s %d %d\n",
 				batostr(&bt_sk(sk)->src), batostr(&bt_sk(sk)->dst),
 				sk->sk_state, rfcomm_pi(sk)->channel);
-
-		size -= len;
-		if (size <= 0)
-			break;
-
-		str += len;
 	}
 
 	read_unlock_bh(&rfcomm_sk_list.lock);
@@ -1110,7 +1102,7 @@ static const struct proto_ops rfcomm_sock_ops = {
 	.mmap		= sock_no_mmap
 };
 
-static struct net_proto_family rfcomm_sock_family_ops = {
+static const struct net_proto_family rfcomm_sock_family_ops = {
 	.family		= PF_BLUETOOTH,
 	.owner		= THIS_MODULE,
 	.create		= rfcomm_sock_create

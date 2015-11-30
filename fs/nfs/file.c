@@ -27,8 +27,6 @@
 #include <linux/slab.h>
 #include <linux/pagemap.h>
 #include <linux/aio.h>
-#include <linux/gfp.h>
-#include <linux/swap.h>
 
 #include <asm/uaccess.h>
 #include <asm/system.h>
@@ -486,19 +484,10 @@ static void nfs_invalidate_page(struct page *page, unsigned long offset)
  */
 static int nfs_release_page(struct page *page, gfp_t gfp)
 {
-	struct address_space *mapping = page->mapping;
-
 	dfprintk(PAGECACHE, "NFS: release_page(%p)\n", page);
 
-	/* Only do I/O if gfp is a superset of GFP_KERNEL */
-	if (mapping && (gfp & GFP_KERNEL) == GFP_KERNEL) {
-		int how = FLUSH_SYNC;
-
-		/* Don't let kswapd deadlock waiting for OOM RPC calls */
-		if (current_is_kswapd())
-			how = 0;
-		nfs_commit_inode(mapping->host, how);
-	}
+	if (gfp & __GFP_WAIT)
+		nfs_wb_page(page->mapping->host, page);
 	/* If PagePrivate() is set, then the page is not freeable */
 	if (PagePrivate(page))
 		return 0;
@@ -594,7 +583,7 @@ static int nfs_need_sync_write(struct file *filp, struct inode *inode)
 {
 	struct nfs_open_context *ctx;
 
-	if (IS_SYNC(inode) || (filp->f_flags & O_SYNC))
+	if (IS_SYNC(inode) || (filp->f_flags & O_DSYNC))
 		return 1;
 	ctx = nfs_file_open_context(filp);
 	if (test_bit(NFS_CONTEXT_ERROR_WRITE, &ctx->flags))
@@ -635,7 +624,7 @@ static ssize_t nfs_file_write(struct kiocb *iocb, const struct iovec *iov,
 
 	nfs_add_stats(inode, NFSIOS_NORMALWRITTENBYTES, count);
 	result = generic_file_aio_write(iocb, iov, nr_segs, pos);
-	/* Return error values for O_SYNC and IS_SYNC() */
+	/* Return error values for O_DSYNC and IS_SYNC() */
 	if (result >= 0 && nfs_need_sync_write(iocb->ki_filp, inode)) {
 		int err = nfs_do_fsync(nfs_file_open_context(iocb->ki_filp), inode);
 		if (err < 0)

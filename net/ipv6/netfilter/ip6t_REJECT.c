@@ -95,11 +95,9 @@ static void send_reset(struct net *net, struct sk_buff *oldskb)
 	fl.fl_ip_dport = otcph.source;
 	security_skb_classify_flow(oldskb, &fl);
 	dst = ip6_route_output(net, NULL, &fl);
-	if (dst == NULL || dst->error) {
-		dst_release(dst);
+	if (dst == NULL)
 		return;
-	}
-	if (xfrm_lookup(net, &dst, &fl, NULL, 0))
+	if (dst->error || xfrm_lookup(net, &dst, &fl, NULL, 0))
 		return;
 
 	hh_len = (dst->dev->hard_header_len + 15)&~15;
@@ -225,8 +223,8 @@ static bool reject_tg6_check(const struct xt_tgchk_param *par)
 		return false;
 	} else if (rejinfo->with == IP6T_TCP_RESET) {
 		/* Must specify that it's a TCP packet */
-		if (e->ipv6.proto != IPPROTO_TCP
-		    || (e->ipv6.invflags & XT_INV_PROTO)) {
+		if (e->ipv6.proto != IPPROTO_TCP ||
+		    (e->ipv6.invflags & XT_INV_PROTO)) {
 			printk("ip6t_REJECT: TCP_RESET illegal for non-tcp\n");
 			return false;
 		}

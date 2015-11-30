@@ -107,7 +107,7 @@ static const struct sctp_paramhdr prsctp_param = {
 	cpu_to_be16(sizeof(struct sctp_paramhdr)),
 };
 
-/* A helper to initialize an op error inside a
+/* A helper to initialize to initialize an op error inside a
  * provided chunk, as most cause codes will be embedded inside an
  * abort chunk.
  */
@@ -124,29 +124,6 @@ void  sctp_init_cause(struct sctp_chunk *chunk, __be16 cause_code,
 	chunk->subh.err_hdr = sctp_addto_chunk(chunk, sizeof(sctp_errhdr_t), &err);
 }
 
-/* A helper to initialize an op error inside a
- * provided chunk, as most cause codes will be embedded inside an
- * abort chunk.  Differs from sctp_init_cause in that it won't oops
- * if there isn't enough space in the op error chunk
- */
-int sctp_init_cause_fixed(struct sctp_chunk *chunk, __be16 cause_code,
-		      size_t paylen)
-{
-	sctp_errhdr_t err;
-	__u16 len;
-
-	/* Cause code constants are now defined in network order.  */
-	err.cause = cause_code;
-	len = sizeof(sctp_errhdr_t) + paylen;
-	err.length  = htons(len);
-
-	if (skb_tailroom(chunk->skb) < len)
-		return -ENOSPC;
-	chunk->subh.err_hdr = sctp_addto_chunk_fixed(chunk,
-						     sizeof(sctp_errhdr_t),
-						     &err);
-	return 0;
-}
 /* 3.3.2 Initiation (INIT) (1)
  *
  * This chunk is used to initiate a SCTP association between two
@@ -1010,7 +987,10 @@ static void *sctp_addto_param(struct sctp_chunk *chunk, int len,
 
 	target = skb_put(chunk->skb, len);
 
-	memcpy(target, data, len);
+	if (data)
+		memcpy(target, data, len);
+	else
+		memset(target, 0, len);
 
 	/* Adjust the chunk length field.  */
 	chunk->chunk_hdr->length = htons(chunklen + len);
@@ -1148,38 +1128,22 @@ nodata:
 	return retval;
 }
 
-/* Create an Operation Error chunk of a fixed size,
- * specifically, max(asoc->pathmtu, SCTP_DEFAULT_MAXSEGMENT)
- * This is a helper function to allocate an error chunk for
- * for those invalid parameter codes in which we may not want
- * to report all the errors, if the incomming chunk is large
- */
-static inline struct sctp_chunk *sctp_make_op_error_fixed(
-	const struct sctp_association *asoc,
-	const struct sctp_chunk *chunk)
-{
-	size_t size = asoc ? asoc->pathmtu : 0;
-
-	if (!size)
-		size = SCTP_DEFAULT_MAXSEGMENT;
-
-	return sctp_make_op_error_space(asoc, chunk, size);
-}
-
 /* Create an Operation Error chunk.  */
 struct sctp_chunk *sctp_make_op_error(const struct sctp_association *asoc,
 				 const struct sctp_chunk *chunk,
 				 __be16 cause_code, const void *payload,
-				 size_t paylen)
+				 size_t paylen, size_t reserve_tail)
 {
 	struct sctp_chunk *retval;
 
-	retval = sctp_make_op_error_space(asoc, chunk, paylen);
+	retval = sctp_make_op_error_space(asoc, chunk, paylen + reserve_tail);
 	if (!retval)
 		goto nodata;
 
-	sctp_init_cause(retval, cause_code, paylen);
+	sctp_init_cause(retval, cause_code, paylen + reserve_tail);
 	sctp_addto_chunk(retval, paylen, payload);
+	if (reserve_tail)
+		sctp_addto_param(retval, reserve_tail, NULL);
 
 nodata:
 	return retval;
@@ -1404,18 +1368,6 @@ void *sctp_addto_chunk(struct sctp_chunk *chunk, int len, const void *data)
 	chunk->chunk_end = skb_tail_pointer(chunk->skb);
 
 	return target;
-}
-
-/* Append bytes to the end of a chunk. Returns NULL if there isn't sufficient
- * space in the chunk
- */
-void *sctp_addto_chunk_fixed(struct sctp_chunk *chunk,
-			     int len, const void *data)
-{
-	if (skb_tailroom(chunk->skb) >= len)
-		return sctp_addto_chunk(chunk, len, data);
-	else
-		return NULL;
 }
 
 /* Append bytes from user space to the end of a chunk.  Will panic if
@@ -2021,12 +1973,13 @@ static sctp_ierror_t sctp_process_unk_param(const struct sctp_association *asoc,
 		 * returning multiple unknown parameters.
 		 */
 		if (NULL == *errp)
-			*errp = sctp_make_op_error_fixed(asoc, chunk);
+			*errp = sctp_make_op_error_space(asoc, chunk,
+					ntohs(chunk->chunk_hdr->length));
 
 		if (*errp) {
-			sctp_init_cause_fixed(*errp, SCTP_ERROR_UNKNOWN_PARAM,
+			sctp_init_cause(*errp, SCTP_ERROR_UNKNOWN_PARAM,
 					WORD_ROUND(ntohs(param.p->length)));
-			sctp_addto_chunk_fixed(*errp,
+			sctp_addto_chunk(*errp,
 					WORD_ROUND(ntohs(param.p->length)),
 					param.v);
 		} else {

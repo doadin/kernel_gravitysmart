@@ -56,7 +56,7 @@ static void vhci_stop(struct usb_hcd *hcd);
 static int vhci_get_frame_number(struct usb_hcd *hcd);
 
 static const char driver_name[] = "vhci_hcd";
-static const char driver_desc[] = "USB/IP Virtual Host Contoroller";
+static const char driver_desc[] = "USB/IP Virtual Host Controller";
 
 struct vhci_hcd *the_controller;
 
@@ -163,8 +163,6 @@ void rh_port_disconnect(int rhport)
 	 * spin_unlock(&vdev->ud.lock); */
 
 	spin_unlock_irqrestore(&the_controller->lock, flags);
-
-	usb_hcd_poll_rh_status(vhci_to_hcd(the_controller));
 }
 
 

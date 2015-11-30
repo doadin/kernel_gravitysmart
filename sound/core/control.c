@@ -31,7 +31,6 @@
 
 /* max number of user-defined controls */
 #define MAX_USER_CONTROLS	32
-#define MAX_CONTROL_COUNT	1028
 
 struct snd_kctl_ioctl {
 	struct list_head list;		/* list of all ioctls */
@@ -76,7 +75,7 @@ static int snd_ctl_open(struct inode *inode, struct file *file)
 	ctl->card = card;
 	ctl->prefer_pcm_subdevice = -1;
 	ctl->prefer_rawmidi_subdevice = -1;
-	ctl->pid = current->pid;
+	ctl->pid = get_pid(task_pid(current));
 	file->private_data = ctl;
 	write_lock_irqsave(&card->ctl_files_rwlock, flags);
 	list_add_tail(&ctl->list, &card->ctl_files);
@@ -126,6 +125,7 @@ static int snd_ctl_release(struct inode *inode, struct file *file)
 				control->vd[idx].owner = NULL;
 	up_write(&card->controls_rwsem);
 	snd_ctl_empty_read_queue(ctl);
+	put_pid(ctl->pid);
 	kfree(ctl);
 	module_put(card->module);
 	snd_card_file_remove(card, file);
@@ -191,10 +191,6 @@ static struct snd_kcontrol *snd_ctl_new(struct snd_kcontrol *control,
 	
 	if (snd_BUG_ON(!control || !control->count))
 		return NULL;
-
-	if (control->count > MAX_CONTROL_COUNT)
-		return NULL;
-
 	kctl = kzalloc(sizeof(*kctl) + sizeof(struct snd_kcontrol_volatile) * control->count, GFP_KERNEL);
 	if (kctl == NULL) {
 		snd_printk(KERN_ERR "Cannot allocate control instance\n");
@@ -677,7 +673,7 @@ static int snd_ctl_elem_info(struct snd_ctl_file *ctl,
 			info->access |= SNDRV_CTL_ELEM_ACCESS_LOCK;
 			if (vd->owner == ctl)
 				info->access |= SNDRV_CTL_ELEM_ACCESS_OWNER;
-			info->owner = vd->owner_pid;
+			info->owner = pid_vnr(vd->owner->pid);
 		} else {
 			info->owner = -1;
 		}
@@ -832,7 +828,6 @@ static int snd_ctl_elem_lock(struct snd_ctl_file *file,
 			result = -EBUSY;
 		else {
 			vd->owner = file;
-			vd->owner_pid = current->pid;
 			result = 0;
 		}
 	}
@@ -863,7 +858,6 @@ static int snd_ctl_elem_unlock(struct snd_ctl_file *file,
 			result = -EPERM;
 		else {
 			vd->owner = NULL;
-			vd->owner_pid = 0;
 			result = 0;
 		}
 	}
@@ -1125,7 +1119,7 @@ static int snd_ctl_tlv_ioctl(struct snd_ctl_file *file,
 	    	goto __kctl_end;
 	}
 	if (vd->access & SNDRV_CTL_ELEM_ACCESS_TLV_CALLBACK) {
-		if (file && vd->owner != NULL && vd->owner != file) {
+		if (vd->owner != NULL && vd->owner != file) {
 			err = -EPERM;
 			goto __kctl_end;
 		}

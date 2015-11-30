@@ -210,7 +210,7 @@ static int handshake_on_error_set_halt(struct ehci_hcd *ehci, void __iomem *ptr,
 	if (error) {
 		ehci_halt(ehci);
 		ehci_to_hcd(ehci)->state = HC_STATE_HALT;
-		ehci_err(ehci, "force halt; handhake %p %08x %08x -> %d\n",
+		ehci_err(ehci, "force halt; handshake %p %08x %08x -> %d\n",
 			ptr, mask, done, error);
 	}
 
@@ -543,14 +543,13 @@ static int ehci_init(struct usb_hcd *hcd)
 	 */
 	ehci->periodic_size = DEFAULT_I_TDPS;
 	INIT_LIST_HEAD(&ehci->cached_itd_list);
-	INIT_LIST_HEAD(&ehci->cached_sitd_list);
 	if ((retval = ehci_mem_init(ehci, GFP_KERNEL)) < 0)
 		return retval;
 
 	/* controllers may cache some of the periodic schedule ... */
 	hcc_params = ehci_readl(ehci, &ehci->caps->hcc_params);
 	if (HCC_ISOC_CACHE(hcc_params))		// full frame cache
-		ehci->i_thresh = 8;
+		ehci->i_thresh = 2 + 8;
 	else					// N microframes cached
 		ehci->i_thresh = 2 + HCC_ISOC_THRES(hcc_params);
 
@@ -606,6 +605,8 @@ static int ehci_init(struct usb_hcd *hcd)
 	}
 	ehci->command = temp;
 
+	/* Accept arbitrarily long scatter-gather lists */
+	hcd->self.sg_tablesize = ~0;
 	return 0;
 }
 
@@ -994,7 +995,7 @@ rescan:
 	/* endpoints can be iso streams.  for now, we don't
 	 * accelerate iso completions ... so spin a while.
 	 */
-	if (qh->hw == NULL) {
+	if (qh->hw->hw_info1 == 0) {
 		ehci_vdbg (ehci, "iso delay\n");
 		goto idle_timeout;
 	}
@@ -1008,11 +1009,10 @@ rescan:
 				tmp && tmp != qh;
 				tmp = tmp->qh_next.qh)
 			continue;
-		/* periodic qh self-unlinks on empty, and a COMPLETING qh
-		 * may already be unlinked.
-		 */
-		if (tmp)
-			unlink_async(ehci, qh);
+		/* periodic qh self-unlinks on empty */
+		if (!tmp)
+			goto nogood;
+		unlink_async (ehci, qh);
 		/* FALL THROUGH */
 	case QH_STATE_UNLINK:		/* wait for hw to finish? */
 	case QH_STATE_UNLINK_WAIT:
@@ -1029,6 +1029,7 @@ idle_timeout:
 		}
 		/* else FALL THROUGH */
 	default:
+nogood:
 		/* caller was supposed to have unlinked any requests;
 		 * that's not our job.  just leak this memory.
 		 */
@@ -1107,9 +1108,19 @@ MODULE_LICENSE ("GPL");
 #define	PLATFORM_DRIVER		ehci_fsl_driver
 #endif
 
+#ifdef CONFIG_USB_EHCI_MXC
+#include "ehci-mxc.c"
+#define PLATFORM_DRIVER		ehci_mxc_driver
+#endif
+
 #ifdef CONFIG_SOC_AU1200
 #include "ehci-au1xxx.c"
 #define	PLATFORM_DRIVER		ehci_hcd_au1xxx_driver
+#endif
+
+#ifdef CONFIG_ARCH_OMAP34XX
+#include "ehci-omap.c"
+#define        PLATFORM_DRIVER         ehci_hcd_omap_driver
 #endif
 
 #ifdef CONFIG_PPC_PS3
@@ -1120,6 +1131,11 @@ MODULE_LICENSE ("GPL");
 #ifdef CONFIG_USB_EHCI_HCD_PPC_OF
 #include "ehci-ppc-of.c"
 #define OF_PLATFORM_DRIVER	ehci_hcd_ppc_of_driver
+#endif
+
+#ifdef CONFIG_XPS_USB_HCD_XILINX
+#include "ehci-xilinx-of.c"
+#define OF_PLATFORM_DRIVER	ehci_hcd_xilinx_of_driver
 #endif
 
 #ifdef CONFIG_PLAT_ORION

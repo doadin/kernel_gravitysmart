@@ -51,6 +51,7 @@
 #include "xfs_quota.h"
 #include "xfs_inode_item.h"
 #include "xfs_export.h"
+#include "xfs_trace.h"
 
 #include <linux/capability.h>
 #include <linux/dcache.h>
@@ -788,8 +789,6 @@ xfs_ioc_fsgetxattr(
 	void			__user *arg)
 {
 	struct fsxattr		fa;
-
-	memset(&fa, 0, sizeof(struct fsxattr));
 
 	xfs_ilock(ip, XFS_ILOCK_SHARED);
 	fa.fsx_xflags = xfs_ip2xflags(ip);

@@ -430,7 +430,8 @@ static struct sock *sco_sock_alloc(struct net *net, struct socket *sock, int pro
 	return sk;
 }
 
-static int sco_sock_create(struct net *net, struct socket *sock, int protocol)
+static int sco_sock_create(struct net *net, struct socket *sock, int protocol,
+			   int kern)
 {
 	struct sock *sk;
 
@@ -957,22 +958,13 @@ static ssize_t sco_sysfs_show(struct class *dev, char *buf)
 	struct sock *sk;
 	struct hlist_node *node;
 	char *str = buf;
-	int size = PAGE_SIZE;
 
 	read_lock_bh(&sco_sk_list.lock);
 
 	sk_for_each(sk, node, &sco_sk_list.head) {
-		int len;
-
-		len = snprintf(str, size, "%s %s %d\n",
+		str += sprintf(str, "%s %s %d\n",
 				batostr(&bt_sk(sk)->src), batostr(&bt_sk(sk)->dst),
 				sk->sk_state);
-
-		size -= len;
-		if (size <= 0)
-			break;
-
-		str += len;
 	}
 
 	read_unlock_bh(&sco_sk_list.lock);
@@ -1002,7 +994,7 @@ static const struct proto_ops sco_sock_ops = {
 	.getsockopt	= sco_sock_getsockopt
 };
 
-static struct net_proto_family sco_sock_family_ops = {
+static const struct net_proto_family sco_sock_family_ops = {
 	.family	= PF_BLUETOOTH,
 	.owner	= THIS_MODULE,
 	.create	= sco_sock_create,

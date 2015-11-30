@@ -121,10 +121,9 @@ static int ip6_output2(struct sk_buff *skb)
 	skb->dev = dev;
 
 	if (ipv6_addr_is_multicast(&ipv6_hdr(skb)->daddr)) {
-		struct ipv6_pinfo* np = skb->sk ? inet6_sk(skb->sk) : NULL;
 		struct inet6_dev *idev = ip6_dst_idev(skb_dst(skb));
 
-		if (!(dev->flags & IFF_LOOPBACK) && (!np || np->mc_loop) &&
+		if (!(dev->flags & IFF_LOOPBACK) && sk_mc_loop(skb->sk) &&
 		    ((mroute6_socket(dev_net(dev)) &&
 		     !(IP6CB(skb)->flags & IP6SKB_FORWARDED)) ||
 		     ipv6_chk_mcast_addr(dev, &ipv6_hdr(skb)->daddr,
@@ -643,7 +642,7 @@ static int ip6_fragment(struct sk_buff *skb, int (*output)(struct sk_buff *))
 
 	if (skb_has_frags(skb)) {
 		int first_len = skb_pagelen(skb);
-		struct sk_buff *frag2;
+		int truesizes = 0;
 
 		if (first_len - hlen > mtu ||
 		    ((first_len - hlen) & 7) ||
@@ -655,18 +654,18 @@ static int ip6_fragment(struct sk_buff *skb, int (*output)(struct sk_buff *))
 			if (frag->len > mtu ||
 			    ((frag->len & 7) && frag->next) ||
 			    skb_headroom(frag) < hlen)
-				goto slow_path_clean;
+			    goto slow_path;
 
 			/* Partially cloned skb? */
 			if (skb_shared(frag))
-				goto slow_path_clean;
+				goto slow_path;
 
 			BUG_ON(frag->sk);
 			if (skb->sk) {
 				frag->sk = skb->sk;
 				frag->destructor = sock_wfree;
+				truesizes += frag->truesize;
 			}
-			skb->truesize -= frag->truesize;
 		}
 
 		err = 0;
@@ -697,6 +696,7 @@ static int ip6_fragment(struct sk_buff *skb, int (*output)(struct sk_buff *))
 
 		first_len = skb_pagelen(skb);
 		skb->data_len = first_len - skb_headlen(skb);
+		skb->truesize -= truesizes;
 		skb->len = first_len;
 		ipv6_hdr(skb)->payload_len = htons(first_len -
 						   sizeof(struct ipv6hdr));
@@ -759,15 +759,6 @@ static int ip6_fragment(struct sk_buff *skb, int (*output)(struct sk_buff *))
 			      IPSTATS_MIB_FRAGFAILS);
 		dst_release(&rt->u.dst);
 		return err;
-
-slow_path_clean:
-		skb_walk_frags(skb, frag2) {
-			if (frag2 == frag)
-				break;
-			frag2->sk = NULL;
-			frag2->destructor = NULL;
-			skb->truesize += frag2->truesize;
-		}
 	}
 
 slow_path:

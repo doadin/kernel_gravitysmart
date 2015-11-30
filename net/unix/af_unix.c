@@ -621,7 +621,8 @@ out:
 	return sk;
 }
 
-static int unix_create(struct net *net, struct socket *sock, int protocol)
+static int unix_create(struct net *net, struct socket *sock, int protocol,
+		       int kern)
 {
 	if (protocol && protocol != PF_UNIX)
 		return -EPROTONOSUPPORT;
@@ -671,7 +672,6 @@ static int unix_autobind(struct socket *sock)
 	static u32 ordernum = 1;
 	struct unix_address *addr;
 	int err;
-	unsigned int retries = 0;
 
 	mutex_lock(&u->readlock);
 
@@ -697,17 +697,9 @@ retry:
 	if (__unix_find_socket_byname(net, addr->name, addr->len, sock->type,
 				      addr->hash)) {
 		spin_unlock(&unix_table_lock);
-		/*
-		 * __unix_find_socket_byname() may take long time if many names
-		 * are already in use.
-		 */
-		cond_resched();
-		/* Give up if all names seems to be in use. */
-		if (retries++ == 0xFFFFF) {
-			err = -ENOSPC;
-			kfree(addr);
-			goto out;
-		}
+		/* Sanity yield. It is unusual case, but yet... */
+		if (!(ordernum&0xFF))
+			yield();
 		goto retry;
 	}
 	addr->hash ^= sk->sk_type;
@@ -1041,8 +1033,8 @@ static int unix_stream_connect(struct socket *sock, struct sockaddr *uaddr,
 		goto out;
 	addr_len = err;
 
-	if (test_bit(SOCK_PASSCRED, &sock->flags)
-		&& !u->addr && (err = unix_autobind(sock)) != 0)
+	if (test_bit(SOCK_PASSCRED, &sock->flags) && !u->addr &&
+	    (err = unix_autobind(sock)) != 0)
 		goto out;
 
 	timeo = sock_sndtimeo(sk, flags & O_NONBLOCK);
@@ -1267,7 +1259,7 @@ static int unix_getname(struct socket *sock, struct sockaddr *uaddr, int *uaddr_
 {
 	struct sock *sk = sock->sk;
 	struct unix_sock *u;
-	struct sockaddr_un *sunaddr = (struct sockaddr_un *)uaddr;
+	DECLARE_SOCKADDR(struct sockaddr_un *, sunaddr, uaddr);
 	int err = 0;
 
 	if (peer) {
@@ -1386,8 +1378,8 @@ static int unix_dgram_sendmsg(struct kiocb *kiocb, struct socket *sock,
 			goto out;
 	}
 
-	if (test_bit(SOCK_PASSCRED, &sock->flags)
-		&& !u->addr && (err = unix_autobind(sock)) != 0)
+	if (test_bit(SOCK_PASSCRED, &sock->flags) && !u->addr
+	    && (err = unix_autobind(sock)) != 0)
 		goto out;
 
 	err = -EMSGSIZE;
@@ -2225,7 +2217,7 @@ static const struct file_operations unix_seq_fops = {
 
 #endif
 
-static struct net_proto_family unix_family_ops = {
+static const struct net_proto_family unix_family_ops = {
 	.family = PF_UNIX,
 	.create = unix_create,
 	.owner	= THIS_MODULE,

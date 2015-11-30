@@ -112,17 +112,14 @@ u32 rt_global_debug_component = \
 
 static struct usb_device_id rtl8192_usb_id_tbl[] = {
 	/* Realtek */
-	{USB_DEVICE(0x0bda, 0x8171)},
 	{USB_DEVICE(0x0bda, 0x8192)},
 	{USB_DEVICE(0x0bda, 0x8709)},
 	/* Corega */
 	{USB_DEVICE(0x07aa, 0x0043)},
 	/* Belkin */
 	{USB_DEVICE(0x050d, 0x805E)},
-	{USB_DEVICE(0x050d, 0x815F)}, /* Belkin F5D8053 v6 */
 	/* Sitecom */
 	{USB_DEVICE(0x0df6, 0x0031)},
-	{USB_DEVICE(0x0df6, 0x004b)},	/* WL-349 */
 	/* EnGenius */
 	{USB_DEVICE(0x1740, 0x9201)},
 	/* Dlink */
@@ -1506,7 +1503,7 @@ static void rtl8192_rx_isr(struct urb *urb)
         urb->context = skb;
         skb_queue_tail(&priv->rx_queue, skb);
         err = usb_submit_urb(urb, GFP_ATOMIC);
-	if(err && err != EPERM)
+	if(err && err != -EPERM)
 		printk("can not submit rxurb, err is %x,URB status is %x\n",err,urb->status);
 }
 
@@ -7160,7 +7157,7 @@ void rtl8192SU_rx_nomal(struct sk_buff* skb)
 			unicast_packet = true;
 		}
 
-		if(!ieee80211_rx(priv->ieee80211,skb, &stats)) {
+		if(!ieee80211_rtl_rx(priv->ieee80211,skb, &stats)) {
 			dev_kfree_skb_any(skb);
 		} else {
 		//	priv->stats.rxoktotal++;  //YJ,test,090108
@@ -7431,7 +7428,7 @@ static const struct net_device_ops rtl8192_netdev_ops = {
 	.ndo_set_mac_address	= r8192_set_mac_adr,
 	.ndo_validate_addr	= eth_validate_addr,
 	.ndo_change_mtu		= eth_change_mtu,
-	.ndo_start_xmit		= rtl8192_ieee80211_xmit,
+	.ndo_start_xmit		= rtl8192_ieee80211_rtl_xmit,
 };
 
 static int __devinit rtl8192_usb_probe(struct usb_interface *intf,
@@ -7624,7 +7621,7 @@ void rtl8192_try_wake_queue(struct net_device *dev, int pri)
         spin_unlock_irqrestore(&priv->tx_lock,flags);
 
 	if(enough_desc)
-		ieee80211_wake_queue(priv->ieee80211);
+		ieee80211_rtl_wake_queue(priv->ieee80211);
 }
 
 void EnableHWSecurityConfig8192(struct net_device *dev)
