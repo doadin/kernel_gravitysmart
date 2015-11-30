@@ -25,31 +25,12 @@
 #include <linux/rcupdate.h>
 #include <linux/smp_lock.h>
 
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS)|| defined(CONFIG_MACH_TASSATT)|| defined(CONFIG_MACH_TASSTMO)|| defined(CONFIG_MACH_GT2) || defined(CONFIG_MACH_GIOATT)
-#include <mach/gpio.h>
-#include <linux/irq.h>	
-#endif
-
-#ifdef CONFIG_KERNEL_DEBUG_SEC
-#include <asm/cacheflush.h>
-#endif
-
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@suse.cz>");
 MODULE_DESCRIPTION("Input core");
 MODULE_LICENSE("GPL");
 
 #define INPUT_DEVICES	256
 
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_GIOATT)
-extern unsigned int Volume_Up_irq;
-extern unsigned int Volume_Down_irq;
-static unsigned int Suspend_Resume = 1;
-#elif defined (CONFIG_MACH_TASSATT)|| defined(CONFIG_MACH_TASSTMO)|| defined(CONFIG_MACH_GT2)
-extern unsigned int Volume_Up_irq;
-extern unsigned int Volume_Down_irq;
-extern unsigned int on_call;
-static unsigned int Volume_irq_wake_en = 0;
-#endif
 /*
  * EV_ABS events which should not be cached are listed here.
  */
@@ -322,36 +303,6 @@ void input_event(struct input_dev *dev,
 		 unsigned int type, unsigned int code, int value)
 {
 	unsigned long flags;
-
-#ifdef CONFIG_KERNEL_DEBUG_SEC
-/*
- *  Forced upload mode key string 
- *  dependency : input.h
- */
-     
-       static bool first=0, second=0, third = 0;
-
-       if(value)
-       {
-            if(code==KERNEL_SEC_FORCED_UPLOAD_1ST_KEY)
-            {
-                first =1;
-            }
-            if(first==1 && code==KERNEL_SEC_FORCED_UPLOAD_2ND_KEY)
-            {
-				flush_cache_all();
-				panic("Reboot to RAMDUMP Mode");
-            }                
-       }
-       else
-       {
-            if(code==KERNEL_SEC_FORCED_UPLOAD_1ST_KEY)
-            {
-                first = 0;
-            }
-       }
-
-#endif // CONFIG_KERNEL_DEBUG_SEC
 
 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
 
@@ -796,11 +747,6 @@ static int input_attach_handler(struct input_dev *dev, struct input_handler *han
 	id = input_match_device(handler->id_table, dev);
 	if (!id)
 		return -ENODEV;
-
-	if(strcmp(dev->name,"accel")==0 && strcmp(handler->name,"cpufreq_ond")==0)
-	 {
-	 	return -ENODEV;
-	 }
 
 	error = handler->connect(handler, dev, id);
 	if (error && error != -ENODEV)
@@ -1387,22 +1333,6 @@ static int input_dev_suspend(struct device *dev)
 
 	mutex_lock(&input_dev->mutex);
 	input_dev_reset(input_dev, false);
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_GIOATT) 
-	if(Suspend_Resume)
-	{
-		set_irq_type(Volume_Up_irq, IRQ_TYPE_EDGE_RISING);
-		set_irq_type(Volume_Down_irq, IRQ_TYPE_EDGE_RISING);
-	}	
-	Suspend_Resume = 0;
-#elif defined (CONFIG_MACH_TASSATT)|| defined(CONFIG_MACH_TASSTMO)|| defined(CONFIG_MACH_GT2) || defined(CONFIG_MACH_GT2R)
-	if (!Volume_irq_wake_en&& on_call)
-	{
-		set_irq_wake(Volume_Up_irq, 1);	
-		if(Volume_Down_irq)  // for GT2 (volup, voldown kbr 76)
-			set_irq_wake(Volume_Down_irq, 1);
-		Volume_irq_wake_en =1;
-	}
-#endif
 	mutex_unlock(&input_dev->mutex);
 
 	return 0;
@@ -1414,22 +1344,6 @@ static int input_dev_resume(struct device *dev)
 
 	mutex_lock(&input_dev->mutex);
 	input_dev_reset(input_dev, true);
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_GIOATT) 
-	if(!Suspend_Resume)
-	{	
-		set_irq_type(Volume_Up_irq, IRQ_TYPE_LEVEL_LOW);
-		set_irq_type(Volume_Down_irq, IRQ_TYPE_LEVEL_LOW);
-	}
-	Suspend_Resume = 1;
-#elif defined (CONFIG_MACH_TASSATT)|| defined(CONFIG_MACH_TASSTMO)|| defined(CONFIG_MACH_GT2)
-	if (Volume_irq_wake_en)
-	{
-		set_irq_wake(Volume_Up_irq, 0); 
-		if(Volume_Down_irq)  // for GT2 (volup, voldown kbr 76)
-			set_irq_wake(Volume_Down_irq, 0);
-		Volume_irq_wake_en =0;
-	}
-#endif
 	mutex_unlock(&input_dev->mutex);
 
 	return 0;
@@ -1865,12 +1779,7 @@ static void __init input_init_abs_bypass(void)
 static int __init input_init(void)
 {
 	int err;
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_GIOATT) 
-	Suspend_Resume = 1;
-#elif defined (CONFIG_MACH_TASSATT)|| defined(CONFIG_MACH_TASSTMO)|| defined(CONFIG_MACH_GT2)
-	Volume_irq_wake_en = 0;
-#endif
-	
+
 	input_init_abs_bypass();
 
 	err = class_register(&input_class);

@@ -8,12 +8,6 @@ source "drivers/connector/Kconfig"
 
 source "drivers/mtd/Kconfig"
 
-# for FSR
-#source "drivers/fsr/Kconfig"
-  
-# for TINY_FSR
-source "drivers/tfsr/Kconfig"
-
 source "drivers/of/Kconfig"
 
 source "drivers/parport/Kconfig"
@@ -96,8 +90,6 @@ source "drivers/memstick/Kconfig"
 
 source "drivers/leds/Kconfig"
 
-source "drivers/switch/Kconfig"
-
 source "drivers/accessibility/Kconfig"
 
 source "drivers/infiniband/Kconfig"
@@ -121,8 +113,4 @@ source "drivers/xen/Kconfig"
 source "drivers/staging/Kconfig"
 
 source "drivers/platform/Kconfig"
-
-source "drivers/dpram/Kconfig"
-
-#source "drivers/param/Kconfig"
 endmenu

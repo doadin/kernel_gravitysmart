@@ -113,9 +113,9 @@ typedef enum netdev_tx netdev_tx_t;
     !defined(CONFIG_NET_IPGRE) &&  !defined(CONFIG_NET_IPGRE_MODULE) && \
     !defined(CONFIG_IPV6_SIT) && !defined(CONFIG_IPV6_SIT_MODULE) && \
     !defined(CONFIG_IPV6_TUNNEL) && !defined(CONFIG_IPV6_TUNNEL_MODULE)
-#define MAX_HEADER (LL_MAX_HEADER + 20)
+#define MAX_HEADER LL_MAX_HEADER
 #else
-#define MAX_HEADER (LL_MAX_HEADER + 48 + 20)
+#define MAX_HEADER (LL_MAX_HEADER + 48)
 #endif
 
 #endif  /*  __KERNEL__  */
@@ -750,7 +750,7 @@ struct net_device
 	struct iw_public_data *	wireless_data;
 #endif
 	/* Management operations */
-	struct net_device_ops *netdev_ops;
+	const struct net_device_ops *netdev_ops;
 	const struct ethtool_ops *ethtool_ops;
 
 	/* Hardware header description */

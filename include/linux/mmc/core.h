@@ -137,36 +137,20 @@ extern int mmc_wait_for_app_cmd(struct mmc_host *, struct mmc_card *,
 extern void mmc_set_data_timeout(struct mmc_data *, const struct mmc_card *);
 extern unsigned int mmc_align_data_size(struct mmc_card *, unsigned int);
 
-#if defined(CONFIG_MACH_TASSTMO) || defined(CONFIG_MACH_FLIPBOOK)
-#define ATH_CLAIM_RELEASE_WAR
-#endif
-
-#ifdef ATH_CLAIM_RELEASE_WAR
-#define __mmc_claim_host(_h, _a) dbg_mmc_claim_host(_h, _a, __func__, __LINE__)
-extern int dbg_mmc_claim_host(struct mmc_host *host, atomic_t *abort, const char *func, int ln);
-#else
 extern int __mmc_claim_host(struct mmc_host *host, atomic_t *abort);
-#endif
 extern void mmc_release_host(struct mmc_host *host);
-#ifdef ATH_CLAIM_RELEASE_WAR
-extern int __mmc_try_claim_host(struct mmc_host *host, const char *func, int ln);
-#else
 extern int mmc_try_claim_host(struct mmc_host *host);
-#endif
+
 /**
  *	mmc_claim_host - exclusively claim a host
  *	@host: mmc host to claim
  *
  *	Claim a host for a set of operations.
  */
-#ifdef ATH_CLAIM_RELEASE_WAR
-#define mmc_claim_host(h) __mmc_claim_host(h, NULL)
-#else
 static inline void mmc_claim_host(struct mmc_host *host)
 {
 	__mmc_claim_host(host, NULL);
 }
-#endif
 
 extern u32 mmc_vddrange_to_ocrmask(int vdd_min, int vdd_max);
 

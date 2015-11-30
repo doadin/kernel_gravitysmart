@@ -73,7 +73,6 @@ obj-$(CONFIG_EXT4_FS)		+= ext4/
 obj-$(CONFIG_JBD)		+= jbd/
 obj-$(CONFIG_JBD2)		+= jbd2/
 obj-$(CONFIG_CRAMFS)		+= cramfs/
-obj-$(CONFIG_RFS_FS)		+= rfs/
 obj-$(CONFIG_SQUASHFS)		+= squashfs/
 obj-y				+= ramfs/
 obj-$(CONFIG_HUGETLBFS)		+= hugetlbfs/
@@ -125,6 +124,3 @@ obj-$(CONFIG_OCFS2_FS)		+= ocfs2/
 obj-$(CONFIG_BTRFS_FS)		+= btrfs/
 obj-$(CONFIG_GFS2_FS)           += gfs2/
 obj-$(CONFIG_EXOFS_FS)          += exofs/
-
-# Patched by YAFFS
-obj-$(CONFIG_YAFFS_FS)		+= yaffs2/
