@@ -135,18 +135,14 @@ enum {
 	L_7X30_NR_CLKS
 };
 
+struct clk_ops;
+extern struct clk_ops clk_ops_7x30;
+
+struct clk_ops *clk_7x30_is_local(uint32_t id);
+int clk_7x30_init(void);
+
 void pll_enable(uint32_t pll);
 void pll_disable(uint32_t pll);
-
-enum {
-	LOW,
-	NOMINAL,
-	HIGH,
-	MSMC1_END
-};
-
-int vote_msmc1(unsigned level);
-void unvote_msmc1(unsigned level);
 
 extern int internal_pwr_rail_ctl_auto(unsigned rail_id, bool enable);
 

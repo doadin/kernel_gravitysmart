@@ -21,13 +21,6 @@
 #include <linux/interrupt.h>
 #include <asm/irq.h>
 
-static void sirc_irq_mask(unsigned int irq);
-static void sirc_irq_unmask(unsigned int irq);
-static void sirc_irq_ack(unsigned int irq);
-static int sirc_irq_set_wake(unsigned int irq, unsigned int on);
-static int sirc_irq_set_type(unsigned int irq, unsigned int flow_type);
-static void sirc_irq_handler(unsigned int irq, struct irq_desc *desc);
-
 static unsigned int int_enable;
 static unsigned int wake_enable;
 
@@ -150,22 +143,6 @@ static void sirc_irq_handler(unsigned int irq, struct irq_desc *desc)
 	generic_handle_irq(sirq+FIRST_SIRC_IRQ);
 
 	desc->chip->ack(irq);
-}
-
-void msm_sirc_enter_sleep(void)
-{
-	save_type     = readl(sirc_regs.int_type);
-	save_polarity = readl(sirc_regs.int_polarity);
-	writel(wake_enable, sirc_regs.int_enable);
-	return;
-}
-
-void msm_sirc_exit_sleep(void)
-{
-	writel(save_type, sirc_regs.int_type);
-	writel(save_polarity, sirc_regs.int_polarity);
-	writel(int_enable, sirc_regs.int_enable);
-	return;
 }
 
 static struct irq_chip sirc_irq_chip = {

@@ -47,6 +47,9 @@
 #define MSM_TMR_BASE          MSM_CSR_BASE
 #define MSM_TMR_SIZE          SZ_4K
 
+#define MSM_GPT_BASE 	      (MSM_TMR_BASE + 0x4)
+#define MSM_DGT_BASE 	      (MSM_TMR_BASE + 0x24)
+
 #define MSM_DMOV_BASE         IOMEM(0xE0002000)
 #define MSM_DMOV_PHYS         0xAC400000
 #define MSM_DMOV_SIZE         SZ_4K
@@ -84,6 +87,7 @@
 #define MSM_TCSR_SIZE	      SZ_4K
 
 #define MSM_SHARED_RAM_BASE   IOMEM(0xE0100000)
+#define MSM_SHARED_RAM_PHYS   0x00100000
 #define MSM_SHARED_RAM_SIZE   SZ_1M
 
 #define MSM_UART1_PHYS        0xACA00000
